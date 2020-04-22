@@ -20,11 +20,21 @@ var settingsKeys = {
 };
 
 if (!seApp.exists(settingsPlistPath)) {
-    var gitFolder = app.chooseFolder({
-        withPrompt: "Please select a git folder:"
-    });
+    var gitFolder;
+    var checkResult;
+    var chooseFolder = function() {
+        gitFolder = app.chooseFolder({
+            withPrompt: "Please select a git folder:"
+        });
+        checkResult = app.doShellScript("cd " + gitFolder + "; git status &> /dev/null && echo 1; (exit 0)");
+    }
 
-    console.log(gitFolder);
+    chooseFolder();
+
+    while (checkResult != "1") {
+        app.displayAlert("Selected folder isnt git repository!");
+        chooseFolder();
+    }
 
     var item1 = {}
     item1[settingsKeys.gitFolder] = gitFolder.toString();
