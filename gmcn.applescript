@@ -1,12 +1,11 @@
 var DefaultSettings = {
     gitFolder: "",
     maxChanges: 1000,
-    checkInterval: 60*60,
     changesCheckInterval: 60
 }
 
 var countSubcomand = "egrep \"\.(swift|m|h)$\" | awk '{ sum += $1; } END { print sum; }' \"$@\"";
-var gitRemoteDiffCommand = "git diff `git merge-base origin/master HEAD`..HEAD --numstat";
+var gitCommittedDiffCommand = "git diff `git merge-base origin/master HEAD`..HEAD --numstat";
 var gitNonIndexDiffCommand = "git diff --numstat";
 var gitIndexDiffCommand = "git diff --staged --numstat";
 
@@ -57,37 +56,18 @@ Settings.gitFolder = plistDict[settingsKeys.gitFolder];
 Settings.maxChanges = plistDict[settingsKeys.maxChanges];
 Settings.checkInterval = plistDict[settingsKeys.checkInterval];
 
-var lastCheckTime = unixTime();
-var lastRemoteChanges = getRemoteDiffCount();
 var lastChangesNumber = 0;
 
 while (true) {
-    var numChanges = 0;
-
-    if (unixTime() - lastCheckTime > DefaultSettings.checkInterval) {
-        console.log("overall check");
-        lastRemoteChanges = getRemoteDiffCount();
-        numChanges = lastRemoteChanges + getNonIndexDiffCount() + getIndexDiffCount();
-        if (numChanges > Settings.maxChanges) {
-            showNotification();
-        }
-        lastCheckTime = unixTime();
-    } else {
-        console.log("check with changes, lastChangesNumber = " + lastChangesNumber);
-        var localNumChanges = getNonIndexDiffCount() + getIndexDiffCount();
-        numChanges = lastRemoteChanges + localNumChanges;
-        if (numChanges > Settings.maxChanges && numChanges > lastChangesNumber) {
-            showNotification();
-        }
+    console.log("check... lastChangesNumber = " + lastChangesNumber);
+    var numChanges = getCommittedDiffCount() + getNonIndexDiffCount() + getIndexDiffCount();
+    if (numChanges > Settings.maxChanges && numChanges > lastChangesNumber) {
+        showNotification();
     }
 
     lastChangesNumber = numChanges;
 
     delay(Settings.changesCheckInterval);
-}
-
-function unixTime() {
-    return new Date().getTime()/1000;
 }
 
 function showNotification() {
@@ -103,8 +83,8 @@ function execCommandInDir(dir, command) {
     return result;
 }
 
-function getRemoteDiffCount(dir) {
-    return execCommandInDir(dir, gitRemoteDiffCommand + " | " + countSubcomand) * 1;
+function getCommittedDiffCount(dir) {
+    return execCommandInDir(dir, gitCommittedDiffCommand + " | " + countSubcomand) * 1;
 }
 
 function getNonIndexDiffCount(dir) {
