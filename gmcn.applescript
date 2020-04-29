@@ -1,8 +1,14 @@
 var DefaultSettings = {
     gitFolder: "",
     maxChanges: 1000,
-    checkInterval: 60*10,
+    checkInterval: 60*60,
+    changesCheckInterval: 60
 }
+
+var countSubcomand = "egrep \"\.(swift|m|h)$\" | awk '{ sum += $1; } END { print sum; }' \"$@\"";
+var gitRemoteDiffCommand = "git diff `git merge-base origin/master HEAD`..HEAD --numstat";
+var gitNonIndexDiffCommand = "git diff --numstat";
+var gitIndexDiffCommand = "git diff --staged --numstat";
 
 var app = Application.currentApplication()
 app.includeStandardAdditions = true
@@ -32,7 +38,7 @@ if (!seApp.exists(settingsPlistPath)) {
     chooseFolder();
 
     while (checkResult != "1") {
-        app.displayAlert("Selected folder isnt git repository!");
+        app.displayAlert("Selected folder isn't git repository!");
         chooseFolder();
     }
 
@@ -51,17 +57,60 @@ Settings.gitFolder = plistDict[settingsKeys.gitFolder];
 Settings.maxChanges = plistDict[settingsKeys.maxChanges];
 Settings.checkInterval = plistDict[settingsKeys.checkInterval];
 
+var lastCheckTime = unixTime();
+var lastRemoteChanges = getRemoteDiffCount();
+var lastChangesNumber = 0;
+
 while (true) {
-    var gitCommand = "git diff `git merge-base origin/master HEAD`..HEAD --numstat | egrep \"\.(swift|m|h)$\" | awk '{ sum += $1; } END { print sum; }' \"$@\"";
-    var fullCommand = "cd " + Settings.gitFolder + ";" + gitCommand;
-    var result = app.doShellScript(fullCommand);
-    console.log(fullCommand + ": " + result);
+    var numChanges = 0;
 
-    var numChanges = result * 1;
-
-    if (numChanges > Settings.maxChanges) {
-        app.displayNotification("У тебя уже " + numChanges + " изменений!\nНе пора ли запилить ПУЛЛИК?🤔", {withTitle: "GIT ALARM!", soundName: "Basso"});
+    if (unixTime() - lastCheckTime > DefaultSettings.checkInterval) {
+        console.log("overall check");
+        lastRemoteChanges = getRemoteDiffCount();
+        numChanges = lastRemoteChanges + getNonIndexDiffCount() + getIndexDiffCount();
+        if (numChanges > Settings.maxChanges) {
+            showNotification();
+        }
+        lastCheckTime = unixTime();
+    } else {
+        console.log("check with changes, lastChangesNumber = " + lastChangesNumber);
+        var localNumChanges = getNonIndexDiffCount() + getIndexDiffCount();
+        numChanges = lastRemoteChanges + localNumChanges;
+        if (numChanges > Settings.maxChanges && numChanges > lastChangesNumber) {
+            showNotification();
+        }
     }
 
-    delay(Settings.checkInterval);
+    lastChangesNumber = numChanges;
+
+    delay(Settings.changesCheckInterval);
+}
+
+function unixTime() {
+    return new Date().getTime()/1000;
+}
+
+function showNotification() {
+    app.displayNotification("У тебя уже " + numChanges + " изменений!\nНе пора ли запилить ПУЛЛИК?🤔", {withTitle: "GIT ALARM!", soundName: "Basso"});
+}
+
+function execCommandInDir(dir, command) {
+    var fullCommand = "cd " + Settings.gitFolder + ";" + command;
+    console.log(fullCommand);
+    var result = app.doShellScript(fullCommand);
+    console.log(result);
+
+    return result;
+}
+
+function getRemoteDiffCount(dir) {
+    return execCommandInDir(dir, gitRemoteDiffCommand + " | " + countSubcomand) * 1;
+}
+
+function getNonIndexDiffCount(dir) {
+    return execCommandInDir(dir, gitNonIndexDiffCommand + " | " + countSubcomand) * 1;   
+}
+
+function getIndexDiffCount(dir) {
+    return execCommandInDir(dir, gitIndexDiffCommand + " | " + countSubcomand) * 1;
 }
