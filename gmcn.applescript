@@ -67,6 +67,8 @@ Settings.checkInterval = plistDict[settingsKeys.checkInterval];
 
 var lastChangesNumber = 0;
 
+showLaunchNotification();
+
 while (true) {
     console.log("check... lastChangesNumber = " + lastChangesNumber);
     var numChanges = getCommittedDiffCount() + getNonIndexDiffCount() + getIndexDiffCount();
@@ -78,6 +80,10 @@ while (true) {
     lastChangesNumber = numChanges;
 
     delay(Settings.checkInterval);
+}
+
+function showLaunchNotification() {
+    app.displayNotification("git folder: " + Settings.gitFolder + ", check interval: " + Settings.checkInterval + " s, max changes: " + Settings.maxChanges, {withTitle: "GMCN started!", soundName: "Basso"});
 }
 
 function showNotification(numChanges) {
