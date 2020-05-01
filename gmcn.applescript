@@ -1,7 +1,7 @@
 var DefaultSettings = {
     gitFolder: "",
     maxChanges: 1000,
-    changesCheckInterval: 60
+    checkInterval: 60
 }
 
 var countSubcomand = "egrep \"\.(swift|m|h)$\" | awk '{ sum += $1; } END { print sum; }' \"$@\"";
@@ -16,7 +16,13 @@ var seApp = Application("System Events");
 
 var Settings = DefaultSettings;
 
-var settingsPlistPath = Path(app.doShellScript("cd ~; pwd") + "/gmcn.plist");
+var settingsPlistPathInfo = {
+    folder: app.doShellScript("cd ~; pwd") + "/.gmcn",
+    fileName: "gmcn.plist",
+    path: function() {
+        return Path(this.folder + "/" + this.fileName)
+    }
+}
 
 var settingsKeys = {
     gitFolder: "git_folder",
@@ -24,7 +30,10 @@ var settingsKeys = {
     checkInterval: "check_interval",
 };
 
-if (!seApp.exists(settingsPlistPath)) {
+if (!seApp.exists(settingsPlistPathInfo.path())) {
+    console.log("plist isn't exist");
+    app.doShellScript("mkdir " + settingsPlistPathInfo.folder);
+
     var gitFolder;
     var checkResult;
     var chooseFolder = function() {
@@ -47,10 +56,10 @@ if (!seApp.exists(settingsPlistPath)) {
     item1[settingsKeys.checkInterval] = Settings.checkInterval;
 
     var plist = $.NSDictionary.dictionaryWithDictionary(item1);
-    plist.writeToFileAtomically(settingsPlistPath.toString(), true);
+    plist.writeToFileAtomically(settingsPlistPathInfo.path().toString(), true);
 }
 
-var content = $.NSDictionary.dictionaryWithContentsOfFile(settingsPlistPath.toString());
+var content = $.NSDictionary.dictionaryWithContentsOfFile(settingsPlistPathInfo.path().toString());
 var plistDict = ObjC.deepUnwrap(content);
 Settings.gitFolder = plistDict[settingsKeys.gitFolder];
 Settings.maxChanges = plistDict[settingsKeys.maxChanges];
@@ -61,16 +70,17 @@ var lastChangesNumber = 0;
 while (true) {
     console.log("check... lastChangesNumber = " + lastChangesNumber);
     var numChanges = getCommittedDiffCount() + getNonIndexDiffCount() + getIndexDiffCount();
+
     if (numChanges > Settings.maxChanges && numChanges > lastChangesNumber) {
-        showNotification();
+        showNotification(numChanges);
     }
 
     lastChangesNumber = numChanges;
 
-    delay(Settings.changesCheckInterval);
+    delay(Settings.checkInterval);
 }
 
-function showNotification() {
+function showNotification(numChanges) {
     app.displayNotification("У тебя уже " + numChanges + " изменений!\nНе пора ли запилить ПУЛЛИК?🤔", {withTitle: "GIT ALARM!", soundName: "Basso"});
 }
 
